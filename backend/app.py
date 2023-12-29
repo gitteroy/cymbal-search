@@ -270,13 +270,13 @@ def regenerate():
     topP = data.get('topP')
     try:
         results = vertex_qa(
+            PROJECT_ID,
             llmModel,
             query,
             summary,
             checkedItems,
             searchResults,
             userInput,
-
             temperature,
             topK,
             topP

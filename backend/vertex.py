@@ -1,10 +1,12 @@
-## gcloud auth login
-## gcloud auth application-default set-quota-project <project_id>
-from langchain.llms import VertexAI
+#@title VertexAI
+
 import re
-import os
+import vertexai
+from vertexai.preview.language_models import TextGenerationModel
+from vertexai.preview.generative_models import GenerativeModel
 
 def vertex_qa(
+  project_id,
   llmModel,
   query,
   summary,
@@ -15,14 +17,6 @@ def vertex_qa(
   topK,
   topP
   ):
-
-  # print("llmModel: ", llmModel)
-  # print("query: ", query)
-  # print("summary: ", summary)
-  # print("checkedItems: ", checkedItems)
-  # print("resultDetails: ", resultDetails)
-  # print("searchResults: ", searchResults)
-  # print("userInput: ", userInput)
 
   ######################################################################################################
 
@@ -77,7 +71,7 @@ def vertex_qa(
   # Process doc items and store in the result_dict
   for doc_index in docs:
     doc_index = int(doc_index)
-    if doc_index <= len(searchResults): 
+    if doc_index <= len(searchResults):
       # print("Doc:", doc_index)
       value = searchResults[doc_index - 1]["filter_name"]
     else:
@@ -95,7 +89,7 @@ def vertex_qa(
   ######################################################################################################
 
   """ Vertex AI """
-  
+
   # https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models#foundation_models
   max_output_tokens = 1024 # text-bison
   if llmModel=="text-bison-32k":
@@ -108,27 +102,53 @@ def vertex_qa(
   topP = 0.0 if topP<0.0 else topP
   topP = 1.0 if topP>1.0 else topP
 
-  llm = VertexAI(
-    model_name=llmModel,
-    max_output_tokens=max_output_tokens,
-    temperature=temperature,
-    top_k=topK,
-    top_p=topP,
-    verbose=True,)
-
   ## Replace each {x} with its actual value
   for i in result_dict:
     userInput = userInput.replace(i, result_dict[i])
 
-  # prompt = PromptTemplate(
-  #   input_variables=["knowledgeList"],
-  #   template=userInput,
-  # )
+  # result = llm(userInput)
+  result = predict_large_language_model_sample(project_id, llmModel, temperature, topP, topK, userInput)
 
-  result = llm(userInput)
-
-  # print("Final Prompt:\n", userInput)
+  print("Final Prompt:\n", userInput)
   # print("-----------")
   print("LLM Output:\n", result)
 
   return result
+
+def predict_large_language_model_sample(
+  project_id: str,
+  model_name: str,
+  temperature: float,
+  top_p: float,
+  top_k: int,
+  content: str,
+  max_decode_steps: int=256,
+  location: str = "us-central1",
+  tuned_model_name: str = "",
+  ) :
+  """Predict using a Large Language Model."""
+  
+  ## Text Models
+  if "gemini" not in model_name:
+    vertexai.init(project=project_id, location=location)
+    model = TextGenerationModel.from_pretrained(model_name)
+    if tuned_model_name:
+      model = model.get_tuned_model(tuned_model_name)
+    response = model.predict(
+        content,
+        temperature=temperature,
+        max_output_tokens=max_decode_steps,
+        top_k=top_k,
+        top_p=top_p,
+    )
+
+  ## Gemini
+  else:
+    from google.cloud import aiplatform
+    aiplatform.init(project=project_id)
+    gemini_pro_model = GenerativeModel("gemini-pro")
+    # gemini_pro_vision_model = GenerativeModel("gemini-pro-vision")
+    model_response = gemini_pro_model.generate_content(content)
+    response = model_response.candidates[0].content.parts[0]
+
+  return response.text

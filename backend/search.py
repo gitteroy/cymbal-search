@@ -1,5 +1,5 @@
-from google.cloud import discoveryengine_v1beta as discoveryengine
-# from google.cloud import discoveryengine_v1alpha as discoveryengine
+# from google.cloud import discoveryengine_v1beta as discoveryengine
+from google.cloud import discoveryengine_v1alpha as discoveryengine
 from google.protobuf.json_format import MessageToDict
 from typing import List, Dict
 import os
@@ -10,6 +10,7 @@ def search_unstructured(PROJECT_ID, data):
     query = data.get('search_query')
     page_size = data.get('page_size')
     summary_result_count = data.get('summary_result_count')
+    preamble = data.get('preamble', "")
     max_snippet_count = data.get('max_snippet_count')
     max_extractive_answer_count = data.get('max_extractive_answer_count')
     max_extractive_segment_count = data.get('max_extractive_segment_count')
@@ -24,6 +25,7 @@ def search_unstructured(PROJECT_ID, data):
     query,
     page_size,
     summary_result_count,
+    preamble,
     max_snippet_count,
     max_extractive_answer_count,
     max_extractive_segment_count,
@@ -38,6 +40,7 @@ def search(
     search_query: str,
     page_size: int,
     summary_result_count: int,
+    preamble: str,
     max_snippet_count: int,
     max_extractive_answer_count: int,
     max_extractive_segment_count: int,
@@ -55,7 +58,13 @@ def search(
     project_id = project_id
     search_engine_id = search_engine_id
     location = "global" 
-    serving_config_id = "default_config" 
+    # serving_config_id = "default_config" 
+    serving_config_id = {
+        "ocr_config": {
+        "enabled": "true",
+        "enhanced_document_elements": ["table"]
+      }
+    }
     search_query = search_query
     
     ## Config Path
@@ -83,9 +92,9 @@ def search(
             # 'ignore_adversarial_query': False,
             # 'ignore_non_summary_seeking_query': False,
             # 'language_code': 'id-ID' # 'th-TH' Use language tags defined by [BCP47][https://www.rfc-editor.org/rfc/bcp/bcp47.txt].
-            # 'model_prompt_spec': {
-            #     'preamble': 'translate to chinese'
-            # }
+            'model_prompt_spec': {
+                'preamble': preamble
+            }
         },
     }
     
@@ -142,45 +151,6 @@ def search(
         facet_specs=facet_specs,
         filter=filter_string,
     )
-
-    ''' ModelPromptSpec
-    import subprocess
-    import requests
-
-    # Use gcloud command to obtain the access token
-    access_token = subprocess.check_output(["gcloud", "auth", "print-access-token"], text=True).strip()
-
-    # Construct the request
-    url = f"https://discoveryengine.googleapis.com/v1alpha/projects/{project_id}/locations/global/collections/default_collection/dataStores/{search_engine_id}/servingConfigs/default_search:search"
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "query": "cloudsql vs bigquery",
-        "contentSearchSpec": {
-            "summarySpec": {
-                "summaryResultCount": 3,
-                "modelPromptSpec": {
-                    "preamble": "structure in HTML table"
-                }
-            }
-        }
-    }
-
-    response = requests.post(url, headers=headers, json=data)
-
-    if response.status_code == 200:
-        # Request was successful, and you can process the response here
-        print("Request was successful")
-        print(response.json())
-    else:
-        # Request failed
-        print(f"Request failed with status code {response.status_code}")
-        print(response.text)
-    '''
 
     response = client.search(request)
     # print("~ Original response:\n",response)
